@@ -1,0 +1,6 @@
+PySide6
+tensorflow
+opencv-python
+numpy
+Pillow
+pandas
