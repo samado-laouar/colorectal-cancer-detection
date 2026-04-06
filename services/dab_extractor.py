@@ -7,7 +7,7 @@ class DABExtractor:
         """
         Initialize DAB Extractor
         Args:
-            method: 'multi_threshold', 'color_deconv', or 'lab'
+            method: 'multi_threshold'
         """
         self.method = method
     
@@ -108,7 +108,7 @@ class DABExtractor:
         B = masked_image[:, :, 2].astype(np.float32)
         
         # Light brown (tan areas)
-        light_brown = (R > 120) & (R > B * 1.15) & (R > G * 1.05) & (B < 180)
+        light_brown = (R > 100) & (R > B * 1.05) & (R > G * 1.02) & (B < 200)
         
         # Medium brown (typical DAB)
         medium_brown = (R > 100) & (R > B * 1.25) & (R > G * 1.1) & (B < 150)
@@ -118,7 +118,7 @@ class DABExtractor:
         
         # Exclude very bright white areas (unstained)
         intensity_sum = R + G + B
-        not_white = intensity_sum < 700
+        not_white = intensity_sum < 720
         
         # Combine all brown intensities
         all_brown = (light_brown | medium_brown | dark_brown) & not_white
@@ -134,75 +134,75 @@ class DABExtractor:
         
         return dab_mask
     
-    def rgb_to_od(self, img):
-        """Convert RGB to Optical Density"""
-        img = img.astype(np.float32) + 1  # Avoid log(0)
-        od = -np.log(img / 255.0)
-        return od
+    # def rgb_to_od(self, img):
+    #     """Convert RGB to Optical Density"""
+    #     img = img.astype(np.float32) + 1  # Avoid log(0)
+    #     od = -np.log(img / 255.0)
+    #     return od
     
-    def color_deconvolution_dab(self, masked_image, tissue_mask):
-        """
-        Color deconvolution H-DAB separation
-        Most accurate method for quantitative analysis
-        """
-        # Convert to Optical Density
-        od = self.rgb_to_od(masked_image)
+    # def color_deconvolution_dab(self, masked_image, tissue_mask):
+    #     """
+    #     Color deconvolution H-DAB separation
+    #     Most accurate method for quantitative analysis
+    #     """
+    #     # Convert to Optical Density
+    #     od = self.rgb_to_od(masked_image)
         
-        # Stain vectors for H-DAB (standard values)
-        H_vector = np.array([0.650, 0.704, 0.286])   # Hematoxylin
-        DAB_vector = np.array([0.268, 0.570, 0.776]) # DAB
+    #     # Stain vectors for H-DAB (standard values)
+    #     H_vector = np.array([0.650, 0.704, 0.286])   # Hematoxylin
+    #     DAB_vector = np.array([0.268, 0.570, 0.776]) # DAB
         
-        # Normalize vectors
-        H_vector = H_vector / np.linalg.norm(H_vector)
-        DAB_vector = DAB_vector / np.linalg.norm(DAB_vector)
+    #     # Normalize vectors
+    #     H_vector = H_vector / np.linalg.norm(H_vector)
+    #     DAB_vector = DAB_vector / np.linalg.norm(DAB_vector)
         
-        # Create deconvolution matrix
-        stain_matrix = np.array([H_vector, DAB_vector]).T
+    #     # Create deconvolution matrix
+    #     stain_matrix = np.array([H_vector, DAB_vector]).T
         
-        # Deconvolve
-        h, w = od.shape[:2]
-        od_flat = od.reshape(-1, 3).T
-        stain_flat = np.linalg.lstsq(stain_matrix, od_flat, rcond=None)[0]
+    #     # Deconvolve
+    #     h, w = od.shape[:2]
+    #     od_flat = od.reshape(-1, 3).T
+    #     stain_flat = np.linalg.lstsq(stain_matrix, od_flat, rcond=None)[0]
         
-        # Extract DAB channel
-        dab_channel = stain_flat[1].reshape(h, w)
+    #     # Extract DAB channel
+    #     dab_channel = stain_flat[1].reshape(h, w)
         
-        # Normalize to 0-255
-        dab_channel = np.clip(dab_channel, 0, None)
-        if dab_channel.max() > 0:
-            dab_channel = (dab_channel / dab_channel.max() * 255).astype(np.uint8)
-        else:
-            dab_channel = dab_channel.astype(np.uint8)
+    #     # Normalize to 0-255
+    #     dab_channel = np.clip(dab_channel, 0, None)
+    #     if dab_channel.max() > 0:
+    #         dab_channel = (dab_channel / dab_channel.max() * 255).astype(np.uint8)
+    #     else:
+    #         dab_channel = dab_channel.astype(np.uint8)
         
-        # Threshold DAB
-        _, dab_mask = cv2.threshold(dab_channel, 20, 255, cv2.THRESH_BINARY)
+    #     # Threshold DAB
+    #     _, dab_mask = cv2.threshold(dab_channel, 20, 255, cv2.THRESH_BINARY)
         
-        # Apply tissue mask
-        dab_mask = cv2.bitwise_and(dab_mask, tissue_mask)
+    #     # Apply tissue mask
+    #     dab_mask = cv2.bitwise_and(dab_mask, tissue_mask)
         
-        return dab_mask
+    #     return dab_mask
     
-    def lab_based_detection(self, masked_image, tissue_mask):
-        """
-        Lab color space detection
-        Alternative method for brown/purple separation
-        """
-        # Convert to Lab
-        lab = cv2.cvtColor(masked_image, cv2.COLOR_RGB2LAB)
-        L = lab[:, :, 0].astype(np.float32)  # Lightness
-        a = lab[:, :, 1].astype(np.float32)  # Red-Green
-        b = lab[:, :, 2].astype(np.float32)  # Yellow-Blue
+    # def lab_based_detection(self, masked_image, tissue_mask):
+    #     """
+    #     Lab color space detection
+    #     Alternative method for brown/purple separation
+    #     """
+    #     # Convert to Lab
+    #     lab = cv2.cvtColor(masked_image, cv2.COLOR_RGB2LAB)
+    #     L = lab[:, :, 0].astype(np.float32)  # Lightness
+    #     a = lab[:, :, 1].astype(np.float32)  # Red-Green
+    #     b = lab[:, :, 2].astype(np.float32)  # Yellow-Blue
         
-        # Brown in Lab: high a (red), high b (yellow), medium L
-        brown_pixels = (a > 130) & (b > 130) & (L > 30) & (L < 220)
+    #     # Brown in Lab: high a (red), high b (yellow), medium L
+    #     brown_pixels = (a > 130) & (b > 130) & (L > 30) & (L < 220)
         
-        dab_mask = np.zeros(masked_image.shape[:2], dtype=np.uint8)
-        dab_mask[brown_pixels] = 255
+    #     dab_mask = np.zeros(masked_image.shape[:2], dtype=np.uint8)
+    #     dab_mask[brown_pixels] = 255
         
-        # Apply tissue mask
-        dab_mask = cv2.bitwise_and(dab_mask, tissue_mask)
+    #     # Apply tissue mask
+    #     dab_mask = cv2.bitwise_and(dab_mask, tissue_mask)
         
-        return dab_mask
+    #     return dab_mask
     
     def extract_and_analyze(self, image_path):
         """
@@ -227,15 +227,7 @@ class DABExtractor:
         # Apply tissue mask
         masked_image = cv2.bitwise_and(image_rgb, image_rgb, mask=tissue_mask)
         
-        # Choose detection method
-        if self.method == 'multi_threshold':
-            dab_mask = self.multi_threshold_rgb(masked_image, tissue_mask)
-        elif self.method == 'color_deconv':
-            dab_mask = self.color_deconvolution_dab(masked_image, tissue_mask)
-        elif self.method == 'lab':
-            dab_mask = self.lab_based_detection(masked_image, tissue_mask)
-        else:
-            dab_mask = self.multi_threshold_rgb(masked_image, tissue_mask)
+        dab_mask = self.multi_threshold_rgb(masked_image, tissue_mask)
         
         result = cv2.bitwise_and(masked_image, masked_image, mask=dab_mask)
         
@@ -268,9 +260,60 @@ class DABExtractor:
         }
         
         # Draw contours of the brown/DAB regions on the original image
-        contour_overlay = self.draw_dab_contours(image_rgb, dab_mask)
+        contour_overlay, num_regions = self.draw_dab_contours(image_rgb, dab_mask)
+        metrics["DAB Regions"] = num_regions
 
         return image_rgb, tissue_mask, result, metrics, contour_overlay
+
+    def extract_and_analyze_whole(self, image_path):
+        """
+        Extract and analyze DAB staining on the entire image (no tissue detection).
+        Returns the same tuple shape as extract_and_analyze so threads stay uniform:
+        (original, full_mask, result, metrics, contour_overlay)
+        """
+        image = cv2.imread(image_path)
+        if image is None:
+            return None, None, None, {"Error": "Failed to load image"}, None
+
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Use a full white mask — every pixel is considered tissue
+        full_mask = np.ones(image_rgb.shape[:2], dtype=np.uint8) * 255
+
+        dab_mask = self.multi_threshold_rgb(image_rgb, full_mask)
+
+        result = cv2.bitwise_and(image_rgb, image_rgb, mask=dab_mask)
+
+        total_pixels = image_rgb.shape[0] * image_rgb.shape[1]
+        brown_pixels = int(np.count_nonzero(dab_mask))
+        percentage = (brown_pixels / total_pixels) * 100 if total_pixels > 0 else 0
+
+        gray = cv2.cvtColor(result, cv2.COLOR_RGB2GRAY)
+        dab_values = gray[dab_mask > 0]
+        if len(dab_values) > 0:
+            mean_intensity = float(np.mean(dab_values))
+            std_intensity  = float(np.std(dab_values))
+            min_intensity  = int(np.min(dab_values))
+            max_intensity  = int(np.max(dab_values))
+        else:
+            mean_intensity = std_intensity = min_intensity = max_intensity = 0
+
+        contour_overlay, num_regions = self.draw_dab_contours(image_rgb, dab_mask)
+
+        metrics = {
+            "Method": self.method,
+            "Image Size": f"{image_rgb.shape[1]}x{image_rgb.shape[0]}",
+            "Tissue Area (pixels)": total_pixels,
+            "Brown Pixels": brown_pixels,
+            "DAB Coverage (%)": round(percentage, 2),
+            "DAB Regions": num_regions,
+            "Mean Intensity": round(mean_intensity, 2),
+            "Std Intensity": round(std_intensity, 2),
+            "Min Intensity": min_intensity,
+            "Max Intensity": max_intensity,
+        }
+
+        return image_rgb, full_mask, result, metrics, contour_overlay
 
     def draw_dab_contours(self, original_image, dab_mask):
         """
@@ -301,63 +344,5 @@ class DABExtractor:
 
         # Add legend text
         num_regions = len(significant_contours)
-        cv2.putText(overlay, f"DAB Regions: {num_regions}",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 100, 0), 2)
 
-        return overlay
-
-    def extract_and_analyze_whole(self, image_path):
-        """
-        Extract DAB on the ENTIRE image — no tissue contour detection.
-        Useful for IHC images where the whole image should be processed.
-        Returns the same tuple as extract_and_analyze:
-            (original, full_mask, result, metrics, contour_overlay)
-        """
-        image = cv2.imread(image_path)
-        if image is None:
-            return None, None, None, {"Error": "Failed to load image"}, None
-
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-        # Every pixel is included — no tissue segmentation
-        full_mask = np.ones(image_rgb.shape[:2], dtype=np.uint8) * 255
-
-        if self.method == 'multi_threshold':
-            dab_mask = self.multi_threshold_rgb(image_rgb, full_mask)
-        elif self.method == 'color_deconv':
-            dab_mask = self.color_deconvolution_dab(image_rgb, full_mask)
-        elif self.method == 'lab':
-            dab_mask = self.lab_based_detection(image_rgb, full_mask)
-        else:
-            dab_mask = self.multi_threshold_rgb(image_rgb, full_mask)
-
-        result = cv2.bitwise_and(image_rgb, image_rgb, mask=dab_mask)
-
-        total_pixels = image_rgb.shape[0] * image_rgb.shape[1]
-        brown_pixels = np.count_nonzero(dab_mask)
-        percentage = (brown_pixels / total_pixels) * 100 if total_pixels > 0 else 0
-
-        gray = cv2.cvtColor(result, cv2.COLOR_RGB2GRAY)
-        dab_values = gray[dab_mask > 0]
-        if len(dab_values) > 0:
-            mean_intensity = np.mean(dab_values)
-            std_intensity  = np.std(dab_values)
-            min_intensity  = np.min(dab_values)
-            max_intensity  = np.max(dab_values)
-        else:
-            mean_intensity = std_intensity = min_intensity = max_intensity = 0
-
-        metrics = {
-            "Method": self.method,
-            "Image Size": f"{image_rgb.shape[1]}x{image_rgb.shape[0]}",
-            "Tissue Area (pixels)": int(total_pixels),
-            "Brown Pixels": int(brown_pixels),
-            "DAB Coverage (%)": round(float(percentage), 2),
-            "Mean Intensity": round(float(mean_intensity), 2),
-            "Std Intensity": round(float(std_intensity), 2),
-            "Min Intensity": int(min_intensity),
-            "Max Intensity": int(max_intensity)
-        }
-
-        contour_overlay = self.draw_dab_contours(image_rgb, dab_mask)
-        return image_rgb, full_mask, result, metrics, contour_overlay
+        return overlay, num_regions

@@ -228,15 +228,6 @@ class IHCWindow(QWidget):
 
         sl.addWidget(divider())
 
-        # DAB Method
-        sl.addWidget(section_lbl("DAB Extraction Method"))
-        self.method_combo = QComboBox()
-        self.method_combo.addItems(["Multi-Threshold RGB", "Color Deconvolution", "Lab Color Space"])
-        self.method_combo.currentIndexChanged.connect(self.on_method_changed)
-        self.method_combo.setCursor(Qt.PointingHandCursor)
-        sl.addWidget(self.method_combo)
-
-        sl.addWidget(divider())
 
         # Actions
         sl.addWidget(section_lbl("Actions"))
@@ -327,7 +318,7 @@ class IHCWindow(QWidget):
         metrics_grid = QVBoxLayout(metrics_frame)
         metrics_grid.setSpacing(8)
         self.metric_cards = {}
-        for k in ["DAB Coverage", "Tissue Area", "DAB Area", "Mean Intensity"]:
+        for k in ["DAB Coverage", "Tissue Area", "DAB Regions", "Mean Intensity"]:
             card = MetricCard(k, "—")
             self.metric_cards[k] = card
             metrics_grid.addWidget(card)
