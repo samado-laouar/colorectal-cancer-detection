@@ -305,3 +305,59 @@ class DABExtractor:
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 100, 0), 2)
 
         return overlay
+
+    def extract_and_analyze_whole(self, image_path):
+        """
+        Extract DAB on the ENTIRE image — no tissue contour detection.
+        Useful for IHC images where the whole image should be processed.
+        Returns the same tuple as extract_and_analyze:
+            (original, full_mask, result, metrics, contour_overlay)
+        """
+        image = cv2.imread(image_path)
+        if image is None:
+            return None, None, None, {"Error": "Failed to load image"}, None
+
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Every pixel is included — no tissue segmentation
+        full_mask = np.ones(image_rgb.shape[:2], dtype=np.uint8) * 255
+
+        if self.method == 'multi_threshold':
+            dab_mask = self.multi_threshold_rgb(image_rgb, full_mask)
+        elif self.method == 'color_deconv':
+            dab_mask = self.color_deconvolution_dab(image_rgb, full_mask)
+        elif self.method == 'lab':
+            dab_mask = self.lab_based_detection(image_rgb, full_mask)
+        else:
+            dab_mask = self.multi_threshold_rgb(image_rgb, full_mask)
+
+        result = cv2.bitwise_and(image_rgb, image_rgb, mask=dab_mask)
+
+        total_pixels = image_rgb.shape[0] * image_rgb.shape[1]
+        brown_pixels = np.count_nonzero(dab_mask)
+        percentage = (brown_pixels / total_pixels) * 100 if total_pixels > 0 else 0
+
+        gray = cv2.cvtColor(result, cv2.COLOR_RGB2GRAY)
+        dab_values = gray[dab_mask > 0]
+        if len(dab_values) > 0:
+            mean_intensity = np.mean(dab_values)
+            std_intensity  = np.std(dab_values)
+            min_intensity  = np.min(dab_values)
+            max_intensity  = np.max(dab_values)
+        else:
+            mean_intensity = std_intensity = min_intensity = max_intensity = 0
+
+        metrics = {
+            "Method": self.method,
+            "Image Size": f"{image_rgb.shape[1]}x{image_rgb.shape[0]}",
+            "Tissue Area (pixels)": int(total_pixels),
+            "Brown Pixels": int(brown_pixels),
+            "DAB Coverage (%)": round(float(percentage), 2),
+            "Mean Intensity": round(float(mean_intensity), 2),
+            "Std Intensity": round(float(std_intensity), 2),
+            "Min Intensity": int(min_intensity),
+            "Max Intensity": int(max_intensity)
+        }
+
+        contour_overlay = self.draw_dab_contours(image_rgb, dab_mask)
+        return image_rgb, full_mask, result, metrics, contour_overlay
